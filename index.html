@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <title>Real-Time Graphs with Custom Data</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: "Montserrat", sans-serif;
+        }
+    
+        .ctrlpnl {
+            border: 1px solid gray;
+            padding: 0 10px 3px 10px;
+            width: 60%;
+            text-align: center;
+        }
+    
+        h4 {
+            padding: 0;
+            margin: 0 0 2px 0;
+        }
+    
+        #csvImportSection,
+        #manualEntrySection {
+            margin-bottom: 20px;
+        }
+    
+        .container {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 1200px;
+        }
+    
+        .table-container {
+            flex: 1;
+            margin-right: 10px;
+        }
+        #dataTable {
+            border-collapse: collapse;
+            width: 100%;
+            max-width: 300px;
+        }
+    
+        #dataTable th,
+        #dataTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+    
+        #dataTable th {
+            background-color: #f2f2f2;
+        }
+    
+        .graph {
+            flex: 2;
+            position: sticky;
+            top: 0; /* Adjust this value as needed */
+            height: 400px; /* Set a fixed height for the graph */
+        }
+    
+        #myChart {
+            width: 100%; /* Ensures the chart takes up the full width of its container */
+            height: auto; /* Allows the chart to determine its height automatically */
+        }
+    
+        .additional-column {
+            width: 100px; /* Assuming each additional column is 100px */
+            flex: 0 0 100px; /* Assigns fixed width to the additional columns */
+        }
+    
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgb(0,0,0); /* Fallback color */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+        }
+
+        /* Modal Content */
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto; /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; /* Could be more or less, depending on screen size */
+        }
+
+        
+    
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                align-items: center;
+            }
+    
+            .table-container,
+            .graph,
+            .additional-column {
+                width: 100%;
+                max-width: none;
+                margin-left: 0;
+                margin-right: 0;
+            }
+    
+            .graph {
+                margin-top: 20px; /* Adds space between the table and graph on smaller screens */
+            }
+        }
+    </style>
+    
+    
+</head>
+<body>
+    <div class="ctrlpnl">
+        <h4>Simple Realtime Graph Plotter</h4>
+    <div>
+        <button id="importCsvButton">Import CSV</button>
+        <button id="manualEntryButton">Manual Data Entry</button>
+    </div>
+
+    <div id="csvImportSection" style="display: none;">
+        <input type="file" id="csvFileInput" accept=".csv">
+    </div>
+
+    <div id="manualEntrySection" style="display: none;">
+        <label for="numColumns">Number of Columns (2-3): </label>
+        <input type="number" id="numColumns" min="2" max="3" value="2">
+        <label for="numRows">Number of Rows: </label>
+        <input type="number" id="numRows" min="1" value="10">
+        <button onclick="createManualEntryTable()">Create Table</button>
+    </div>
+    <p id="HowToUse"><i class="fas fa-info-circle"></i> Info </p>
+
+</div>
+    <div class="container">
+        <div class="table-container">
+            <table id="dataTable">
+                <!-- Table will be dynamically generated -->
+            </table>
+            <button onclick="exportCSV()" style="display: none;">Export CSV</button>
+        </div>
+        <div class="graph">
+            <canvas id="myChart"></canvas>
+            <button onclick="exportGraph()" style="display: none;">Export Graph</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const importCsvButton = document.getElementById('importCsvButton');
+        const manualEntryButton = document.getElementById('manualEntryButton');
+        const csvImportSection = document.getElementById('csvImportSection');
+        const manualEntrySection = document.getElementById('manualEntrySection');
+        const dataTable = document.getElementById('dataTable');
+        const exportCSVButton = document.getElementById('exportCSV');
+        const exportGraphButton = document.getElementById('exportGraph');
+        let chart; // Reference to the Chart.js chart instance
+    
+        // Event listeners for the buttons
+        importCsvButton.addEventListener('click', () => {
+            csvImportSection.style.display = 'block';
+            manualEntrySection.style.display = 'none';
+        });
+    
+        manualEntryButton.addEventListener('click', () => {
+            manualEntrySection.style.display = 'block';
+            csvImportSection.style.display = 'none';
+        });
+
+        function handleCsvImport(event) {
+        const file = event.target.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const content = e.target.result;
+            const allTextLines = content.split(/\r\n|\n/);
+            const headers = allTextLines[0].split(',');
+            const lines = [];
+
+            for (let i = 1; i < allTextLines.length; i++) {
+                const data = allTextLines[i].split(',');
+                if (data.length === headers.length) {
+                    lines.push(data);
+                }
+            }
+            populateDataTable(headers, lines);
+            initializeGraph(headers);
+            updateGraph(lines);
+        };
+        reader.readAsText(file);
+    }
+
+    // Function to populate the data table with given headers and rows
+    function populateDataTable(headers, rows) {
+        dataTable.innerHTML = '';
+        const thead = dataTable.createTHead();
+        const headerRow = thead.insertRow(0);
+        headerRow.insertCell(0).textContent = 'Serial'; // Non-editable serial number header
+        headers.forEach((header, index) => {
+            const headerCell = headerRow.insertCell(index + 1);
+            const headerDiv = document.createElement('div');
+            headerDiv.contentEditable = true;
+            headerDiv.textContent = header;
+            headerCell.appendChild(headerDiv);
+        });
+
+        rows.forEach((row, rowIndex) => {
+            const tr = dataTable.insertRow(rowIndex + 1);
+            tr.insertCell(0).textContent = rowIndex + 1; // Auto-populated serial number
+            row.forEach((cellData, cellIndex) => {
+                const cell = tr.insertCell(cellIndex + 1);
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = cellData;
+                input.oninput = updateGraph; // Update graph when cell data is edited
+                cell.appendChild(input);
+            });
+        });
+    }
+    
+        // Function to create the table for manual data entry
+        function createManualEntryTable() {
+            const numColumns = parseInt(document.getElementById('numColumns').value);
+            const numRows = parseInt(document.getElementById('numRows').value);
+            // Clear existing data
+            dataTable.innerHTML = '';
+    
+            // Create headers
+            const headerRow = dataTable.createTHead().insertRow(0);
+            headerRow.insertCell(0).textContent = 'Serial';
+            for (let i = 1; i <= numColumns; i++) {
+                let editableHeader = document.createElement('th');
+                let headerText = document.createElement('div');
+                headerText.contentEditable = true;
+                headerText.textContent = `Axis ${i}`;
+                headerText.onblur = updateGraph; // Update graph when the header is edited
+                editableHeader.appendChild(headerText);
+                headerRow.appendChild(editableHeader);
+            }
+    
+            // Create rows
+            for (let i = 0; i < numRows; i++) {
+                const row = dataTable.insertRow(-1);
+                const serialCell = row.insertCell(0);
+                serialCell.textContent = i + 1; // Serial number
+                for (let j = 1; j <= numColumns; j++) {
+                    const cell = row.insertCell(-1);
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.oninput = updateGraph; // Update graph when the cell data is edited
+                    cell.appendChild(input);
+                }
+            }
+    
+            // Initialize graph with the updated headers and empty data
+            initializeGraph();
+        }
+    
+      
+
+    // Function to initialize the graph
+    function initializeGraph() {
+        const ctx = document.getElementById('myChart').getContext('2d');
+        ctx.canvas.style.backgroundColor = 'rgba(255, 255, 255, 1)'; // Set the background color here (white in this example)
+
+        if (chart) {
+            chart.destroy(); // Destroy the old chart instance if exists
+        }
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], // Placeholder for labels
+                datasets: [{
+                    label: 'Dataset',
+                    data: [], // Placeholder for data
+                    fill: false,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        type: 'linear',
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+
+    // Function to update the graph based on the input values in the dataTable
+    function updateGraph() {
+        const data = [];
+        const labels = [];
+        for (let i = 1; i < dataTable.rows.length; i++) {
+            const row = dataTable.rows[i];
+            const xValue = parseFloat(row.cells[1].querySelector('input').value);
+            const yValue = parseFloat(row.cells[2].querySelector('input').value);
+            if (!isNaN(xValue) && !isNaN(yValue)) {
+                labels.push(xValue);
+                data.push(yValue);
+            }
+        }
+
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = data;
+        chart.update();
+    }
+
+    // Function to export the dataTable to CSV
+    function exportCSV() {
+        let csvContent = 'data:text/csv;charset=utf-8,';
+        // Extract headers
+        const headers = Array.from(dataTable.rows[0].cells).map(header => header.innerText);
+        csvContent += headers.join(',') + '\n';
+
+        // Extract data
+        for (let i = 1; i < dataTable.rows.length; i++) {
+            const row = dataTable.rows[i];
+            const rowData = Array.from(row.cells).map(cell => cell.querySelector('input') ? cell.querySelector('input').value : cell.innerText);
+            csvContent += rowData.join(',') + '\n';
+        }
+
+        // Download CSV
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', 'data.csv');
+        document.body.appendChild(link); // Required for Firefox
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // Function to export the graph as a PNG image
+    function exportGraph() {
+        const url = chart.toBase64Image();
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'chart.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // Add context menu for adding/deleting rows
+    function showContextMenu(event, row) {
+        // Prevent the default context menu
+        event.preventDefault();
+
+        // Create custom context menu
+        const contextMenu = document.createElement('div');
+        contextMenu.id = 'contextMenu';
+        contextMenu.style.top = `${event.clientY}px`;
+        contextMenu.style.left = `${event.clientX}px`;
+        contextMenu.classList.add('context-menu');
+        contextMenu.innerHTML = `<div class="menu-item" onclick="addRowBelow(${row.rowIndex})">Add Row Below</div>
+                                 <div class="menu-item" onclick="deleteRow(${row.rowIndex})">Delete Row</div>`;
+        document.body.appendChild(contextMenu);
+        
+        // Remove the context menu on click anywhere
+        document.addEventListener('click', function onClickOutside() {
+            contextMenu.remove();
+            document.removeEventListener('click', onClickOutside);
+        });
+    }
+
+    // Additional helper functions to add/delete rows
+    function addRowBelow(rowIndex) {
+        const newRow = dataTable.insertRow(rowIndex + 1);
+        // Populate newRow similar to how you're doing in createManualEntryTable
+        // ... 
+    }
+
+    function deleteRow(rowIndex) {
+        if (dataTable.rows.length > 2) { // Keep at least the header and one row
+            dataTable.deleteRow(rowIndex);
+            updateGraph(); // Update the graph after deletion
+        }
+    }
+
+    document.getElementById('csvFileInput').addEventListener('change', handleCsvImport);
+    // Call to the function to set up the initial state or based on an event
+    document.getElementById('createTableButton').addEventListener('click', createManualEntryTable);
+
+    // Additional setup if required...
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<!-- How to use -->
+
+<div id="informationModal" class="modal">
+    <div class="modal-content">
+        <p><strong style="color: red;">NO INFORMATION IS STORED IN THE DATABASE SO DON'T REFRESH</strong></p>
+        <ol>
+            <li>
+                There are two options to get started: 
+                 <ul>
+                    <br><li><strong>Upload CSV:</strong> Here you can upload a CSV for two columns. <a href="sample.csv" download>Get a sample CSV here</a>. The system will obtain the data and feed it into a table. The size of the table is the same as the CSV size. The top row of the CSV is automatically rendered as the header.</li>
+                </ul>
+            </li>
+            <br><hr><br>
+            <ul>
+                <li>
+                    <strong>Option 2 is Manual Data Entry:</strong> 3D plotting is currently unavailable, so choose the number of columns as 2 and rows as many as you want. As per your selection, a table will populate. As you start entering the data, the graphs will start plotting automatically.
+                </li>
+            </ul>
+        </ol>
+        <p><strong>Download the Graph:</strong></p>
+        <p>You can simply right-click on the graph and select "Save as image/download" to download the graph. It will be downloaded as a PNG and will have a transparent background for smooth pasting.</p>
+    </div>
+    </div>
+</div>
+
+<script>
+    // Get the modal
+    var modal = document.getElementById("informationModal");
+
+    // Get the button that opens the modal
+    var btn = document.getElementById("HowToUse");
+
+    // When the user clicks the button, open the modal 
+    btn.onclick = function() {
+        modal.style.display = "block";
+    }
+
+    // When the user clicks anywhere outside of the modal, close it
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+</script>
+    
+    
+</body>
+</html>
