@@ -1,6 +1,6 @@
 [![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Visit%20Site-blue)](https://shashwatanayak.github.io/realtime_plot/)
 
-[Checkout the plotter](https://shashwatanayak.github.io/realtime_plot/)
+# [Checkout the plotter](https://shashwatanayak.github.io/realtime_plot/)
 
 
 # Real-Time Graphs Plotting with Manual Data Entry and CSV
