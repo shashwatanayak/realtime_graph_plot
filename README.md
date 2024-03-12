@@ -1,3 +1,5 @@
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Visit%20Site-blue)](https://shashwatanayak.github.io/realtime_plot/)
+
 # Real-Time Graphs Plotting with Manual Data Entry and CSV
 
 This project allows users to plot real-time graphs using either manual data entry or CSV import. It provides an interactive and easy-to-use interface for data visualization.
